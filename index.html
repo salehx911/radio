@@ -77,13 +77,25 @@ button:disabled{opacity:.5;cursor:not-allowed}
 </section>
 </main>
 <div id="bar" hidden=""></div>
-<script id="state" type="application/json">{"title":"وش دورك في الإذاعة؟","sub":"اكتب اسمك وبيطلع لك دورك وفقرتك وموضوعك","people":[{"name":"صالح بندر","role":"مقدم","topic":"افتتاح الإذاعة والترحيب بالحضور","time":"٧:٣٠ - ٧:٣٣"},{"name":"خالد علي","role":"قارئ القرآن","topic":"تلاوة آيات من سورة الفاتحة","time":"٧:٣٣ - ٧:٣٦"},{"name":"سعد عبدالله","role":"فقرة الحديث","topic":"حديث عن أهمية الصدق","time":"٧:٣٦ - ٧:٣٩"},{"name":"يوسف ناصر","role":"فقرة المعلومة","topic":"هل تعلم؟ معلومات عن الفضاء","time":"٧:٣٩ - ٧:٤٢"}]}</script>
+<script id="state" type="application/json">{"title":"وش دورك في الإذاعة؟","sub":"اكتب اسمك وبيطلع لك دورك وفقرتك وموضوعك","people":[{"name":"صالح بندر","role":"مقدم","topic":"افتتاح الإذاعة والترحيب بالحضور","time":"٧:٣٠ - ٧:٣٣"},{"name":"خالد علي","role":"تلاوة القرآن","topic":"تلاوة آيات من سورة الفاتحة","time":"٧:٣٣ - ٧:٣٦"},{"name":"سعد عبدالله","role":"فقرة الحديث","topic":"حديث عن أهمية الصدق","time":"٧:٣٦ - ٧:٣٩"},{"name":"يوسف ناصر","role":"فقرة المعلومة","topic":"هل تعلم؟ معلومات عن الفضاء","time":"٧:٣٩ - ٧:٤٢"}]}</script>
 <script>
 const S=JSON.parse(document.getElementById('state').textContent);
 const $=id=>document.getElementById(id);
 let canEdit=false,editing=false,dirty=false;
+let ACCEPTED=[];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=s=>String(s).replace(/[\u064B-\u065F\u0640]/g,'').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').trim().toLowerCase();
+// يدمج الأسماء المقبولة من الجدول: يبدّل اسم البطاقة اللي دورها يحتوي اسم الفقرة، وإلا يضيف بطاقة جديدة
+function merged(){
+  const out=S.people.map(p=>({...p}));
+  ACCEPTED.forEach(a=>{
+    const seg=norm(a.segment);
+    const hit=out.find(p=>norm(p.role).includes(seg));
+    if(hit){hit.name=a.name;hit.topic=''}
+    else out.push({name:a.name,role:a.segment,topic:'',time:''});
+  });
+  return out;
+}
 function render(){
   $('title').textContent=S.title;$('sub').textContent=S.sub;
   const list=$('list'),head=$('head');
@@ -98,8 +110,9 @@ function render(){
   }else{
     head.innerHTML='';
     const t=norm($('q').value);
-    const res=t?S.people.filter(p=>norm(p.name).includes(t)):S.people;
-    list.innerHTML=res.length?res.map(p=>`<article class="card"><h2>${esc(p.name)}</h2><p class="role">${esc(p.role)}</p><p class="topic">${esc(p.topic)}</p>${p.time?`<div class="time">الوقت: ${esc(p.time)}</div>`:''}</article>`).join(''):'<p class="empty">ما لقينا هذا الاسم. تأكد من الكتابة أو كلم قائد الإذاعة.</p>';
+    const all=merged();
+    const res=t?all.filter(p=>norm(p.name).includes(t)):all;
+    list.innerHTML=res.length?res.map(p=>`<article class="card"><h2>${esc(p.name)}</h2><p class="role">${esc(p.role)}</p>${p.topic?`<p class="topic">${esc(p.topic)}</p>`:''}${p.time?`<div class="time">الوقت: ${esc(p.time)}</div>`:''}</article>`).join(''):'<p class="empty">ما لقينا هذا الاسم. تأكد من الكتابة أو كلم قائد الإذاعة.</p>';
   }
   bar();
 }
@@ -146,6 +159,7 @@ render();
     try {
       const res = await fetch(SCRIPT_URL);
       const data = await res.json();
+      if (data.accepted) { ACCEPTED = data.accepted; render(); }
       segEl.innerHTML = '<option value="">اختر الفقرة</option>';
       data.segments.forEach(function (s) {
         const o = document.createElement('option');
