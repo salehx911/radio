@@ -40,6 +40,17 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .del{position:absolute;inset-inline-start:12px;top:12px;padding:4px 12px;font-size:.85rem;color:#ff9b9b;border-color:#7a3a3a}
 .note{text-align:center;color:var(--mute);font-size:.9rem;margin:0 0 14px}
 body.pad main{padding-bottom:110px}
+/* ===== نموذج طلب الفقرات ===== */
+.f select{width:100%;background:#0a1020;border:1px solid var(--line);border-radius:6px;color:var(--ivory);font:inherit;padding:10px 12px}
+.f select option:disabled{color:#777}
+select:focus-visible{outline:3px solid var(--gold2);outline-offset:2px}
+button:disabled{opacity:.5;cursor:not-allowed}
+#rq{margin-top:28px}
+#rq .note{margin:0 0 6px;text-align:start}
+#rq button{margin-top:6px}
+#rq-msg{min-height:1.4em;font-size:.95rem;color:var(--mute)}
+#rq-msg.ok{color:var(--gold2)}
+#rq-msg.err{color:#ff9b9b}
 </style>
 </head>
 <body class="">
@@ -51,6 +62,19 @@ body.pad main{padding-bottom:110px}
 <div id="head"></div>
 <label class="search"><span aria-hidden="true">⌕</span><input id="q" type="search" placeholder="اكتب اسمك هنا" autocomplete="off" aria-label="ابحث بالاسم"></label>
 <div id="list" aria-live="polite"></div>
+
+<section class="card f" id="rq">
+<h2>اطلب فقرتك</h2>
+<p class="note">اكتب اسمك واختر فقرة متاحة، وبعدها ننتظر موافقة المشرف</p>
+<form id="rq-form" class="f" autocomplete="off">
+<label for="rq-name">اسمك</label>
+<input id="rq-name" type="text" maxlength="60" required>
+<label for="rq-seg">الفقرة</label>
+<select id="rq-seg" required><option value="">جاري تحميل الفقرات...</option></select>
+<button id="rq-btn" class="pri" type="submit">إرسال الطلب</button>
+<div id="rq-msg" role="status" aria-live="polite"></div>
+</form>
+</section>
 </main>
 <div id="bar" hidden=""></div>
 <script id="state" type="application/json">{"title":"وش دورك في الإذاعة؟","sub":"اكتب اسمك وبيطلع لك دورك وفقرتك وموضوعك","people":[{"name":"صالح بندر","role":"مقدم","topic":"افتتاح الإذاعة والترحيب بالحضور","time":"٧:٣٠ - ٧:٣٣"},{"name":"خالد علي","role":"قارئ القرآن","topic":"تلاوة آيات من سورة الفاتحة","time":"٧:٣٣ - ٧:٣٦"},{"name":"سعد عبدالله","role":"فقرة الحديث","topic":"حديث عن أهمية الصدق","time":"٧:٣٦ - ٧:٣٩"},{"name":"يوسف ناصر","role":"فقرة المعلومة","topic":"هل تعلم؟ معلومات عن الفضاء","time":"٧:٣٩ - ٧:٤٢"}]}</script>
@@ -105,5 +129,63 @@ render();
 (async()=>{try{const u=await window.claude?.use('user');if(u&&u.canEdit()){canEdit=true;render()}}catch(e){}})();
 </script>
 
+<!-- ===== نظام طلب الفقرات (Google Sheets) ===== -->
+<script>
+(function () {
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOW8HVEv5D3eQfP1ffEwiNrq9j5HTIQ0Lw5p10BB5-Hd7ChxjJQkz6kqkUFQZM5Kpq/exec';
+
+  const form = document.getElementById('rq-form');
+  const nameEl = document.getElementById('rq-name');
+  const segEl = document.getElementById('rq-seg');
+  const btn = document.getElementById('rq-btn');
+  const msg = document.getElementById('rq-msg');
+
+  function show(text, cls) { msg.textContent = text; msg.className = cls || ''; }
+
+  async function loadSegments() {
+    try {
+      const res = await fetch(SCRIPT_URL);
+      const data = await res.json();
+      segEl.innerHTML = '<option value="">اختر الفقرة</option>';
+      data.segments.forEach(function (s) {
+        const o = document.createElement('option');
+        o.value = s.name;
+        o.textContent = s.available ? s.name : s.name + ' (محجوزة)';
+        o.disabled = !s.available;
+        segEl.appendChild(o);
+      });
+    } catch (e) {
+      segEl.innerHTML = '<option value="">تعذّر تحميل الفقرات</option>';
+      show('تأكد من الاتصال وحدّث الصفحة', 'err');
+    }
+  }
+
+  form.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    btn.disabled = true;
+    show('جاري الإرسال...');
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ name: nameEl.value, segment: segEl.value })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        show('وصل طلبك! بتنتظر موافقة المشرف', 'ok');
+        form.reset();
+      } else {
+        show(data.error || 'صار خطأ', 'err');
+      }
+    } catch (e) {
+      show('تعذّر الإرسال، حاول مرة ثانية', 'err');
+    }
+    btn.disabled = false;
+    loadSegments();
+  });
+
+  loadSegments();
+})();
+</script>
 
 </body></html>
